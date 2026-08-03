@@ -79,6 +79,7 @@ async function syncPinnedTodoReliably(enabled: boolean, alwaysOnTop: boolean, re
 
 function shellMarkup(): string {
   return `<section class="widget-shell"><div class="widget-stage"><div class="orb-cluster">
+    <span class="orb-seasonal" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>
     ${isTauri ? "" : `<nav class="satellite-menu" aria-label="功能菜单">${visibleTools().map((tool, index) =>
       `<button class="satellite" data-tool="${tool.id}" style="--index:${index}" title="${tool.label}"><span>${tool.icon}</span><small>${tool.label}</small></button>`).join("")}</nav>
     `}
@@ -284,13 +285,13 @@ async function openTool(id: ToolId): Promise<void> {
 function renderSatelliteWindow(id: ToolId): void {
   const tool = byTool(id);
   document.body.dataset.surface = "satellite";
-  app.innerHTML = `<main class="satellite-page"><button class="satellite-window-button" data-tool="${id}" title="${tool.label}" aria-label="打开${tool.label}"><span>${tool.icon}</span></button></main>`;
+  app.innerHTML = `<main class="satellite-page"><span class="satellite-seasonal" aria-hidden="true"><i></i><i></i><i></i></span><button class="satellite-window-button" data-tool="${id}" title="${tool.label}" aria-label="打开${tool.label}"><span>${tool.icon}</span></button></main>`;
   app.querySelector<HTMLButtonElement>(".satellite-window-button")?.addEventListener("click", () => void openTool(id));
 }
 
 function panelFrame(id: ToolId, body: string): string {
   const tool = byTool(id);
-  return `<section class="tool-window" data-window="${id}" role="dialog"><header class="tool-title"><span class="tool-title-icon">${tool.icon}</span><strong>${tool.label}</strong><button class="close-panel" aria-label="关闭">×</button></header><div class="tool-body">${body}</div><span class="resize-handle"></span></section>`;
+  return `<section class="tool-window" data-window="${id}" role="dialog"><span class="tool-seasonal" aria-hidden="true"></span><header class="tool-title"><span class="tool-title-icon">${tool.icon}</span><strong>${tool.label}</strong><button class="close-panel" aria-label="关闭">×</button></header><div class="tool-body">${body}</div><span class="resize-handle"></span></section>`;
 }
 
 function renderTool(id: ToolId): void {
@@ -635,7 +636,10 @@ function settingsMarkup(): string {
       <label><span>窗口置顶<small>主球与工具窗统一遵循</small></span><input id="alwaysOnTop" type="checkbox" ${data.settings.alwaysOnTop ? "checked" : ""}></label>
       <label><span>常驻待办<small>独立小窗显示，不占用主球边界</small></span><input id="pinTodo" type="checkbox" ${data.settings.pinTodo ? "checked" : ""}></label>
       <label><span>水位指标<small>决定球内水位高度</small></span><select id="metric"><option value="memory" ${data.settings.metric === "memory" ? "selected" : ""}>内存</option><option value="cpu" ${data.settings.metric === "cpu" ? "selected" : ""}>CPU</option></select></label>
-      <label><span>主题<small>颜色、字体和水球样式由主题令牌控制</small></span><select id="themeId">${THEMES.map(theme => `<option value="${theme.id}" ${theme.id === data.settings.themeId ? "selected" : ""}>${theme.name}</option>`).join("")}</select></label>
+      <div class="theme-setting"><div class="setting-copy"><span>主题</span><small>同时改变水球材质、季节装饰、功能球与窗口纹理</small></div>
+        <div class="theme-picker" role="radiogroup" aria-label="桌面主题">${THEMES.map(theme => `<button type="button" class="theme-choice ${theme.id === data.settings.themeId ? "active" : ""}" data-theme-id="${theme.id}" data-testid="theme-${theme.id}" role="radio" aria-checked="${theme.id === data.settings.themeId}"><i>${theme.icon}</i><span><b>${theme.name}</b><small>${theme.description}</small></span></button>`).join("")}</div>
+        <input id="themeId" type="hidden" value="${escapeHtml(data.settings.themeId)}">
+      </div>
     </section>
     <section class="settings-section"><h3>功能球</h3>
       <p class="diagnostic-note">选择点击水球后展开的功能。隐藏后仍可从系统托盘打开。</p>
@@ -671,7 +675,7 @@ function bindSettings(panel: HTMLElement): void {
       alwaysOnTop: panel.querySelector<HTMLInputElement>("#alwaysOnTop")!.checked,
       pinTodo: panel.querySelector<HTMLInputElement>("#pinTodo")!.checked,
       metric: panel.querySelector<HTMLSelectElement>("#metric")!.value as "cpu" | "memory",
-      themeId: panel.querySelector<HTMLSelectElement>("#themeId")!.value,
+      themeId: panel.querySelector<HTMLInputElement>("#themeId")!.value,
       aiEnabled: panel.querySelector<HTMLInputElement>("#aiEnabled")!.checked,
       baseUrl: panel.querySelector<HTMLInputElement>("#aiBaseUrl")!.value.trim(),
       model: panel.querySelector<HTMLInputElement>("#aiModel")!.value.trim(),
@@ -702,12 +706,24 @@ function bindSettings(panel: HTMLElement): void {
     });
     return settingsQueue;
   };
+  panel.querySelectorAll<HTMLButtonElement>(".theme-choice").forEach(button => button.addEventListener("click", () => {
+    const themeId = button.dataset.themeId;
+    if (!themeId) return;
+    panel.querySelector<HTMLInputElement>("#themeId")!.value = themeId;
+    panel.querySelectorAll<HTMLButtonElement>(".theme-choice").forEach(choice => {
+      const active = choice === button;
+      choice.classList.toggle("active", active);
+      choice.setAttribute("aria-checked", String(active));
+    });
+    applyTheme(themeId);
+    void persist();
+  }));
   panel.querySelector(".close-panel")?.addEventListener("click", async event => {
     event.stopImmediatePropagation();
     await persist();
     closeTool();
   }, { capture: true });
-  panel.querySelectorAll("#alwaysOnTop,#pinTodo,#metric,#themeId,#aiEnabled,#aiBaseUrl,#aiModel,#updateEnabled,#updateAutoCheck,#updateEndpoint,.visible-tool").forEach(node => node.addEventListener("change", () => void persist()));
+  panel.querySelectorAll("#alwaysOnTop,#pinTodo,#metric,#aiEnabled,#aiBaseUrl,#aiModel,#updateEnabled,#updateAutoCheck,#updateEndpoint,.visible-tool").forEach(node => node.addEventListener("change", () => void persist()));
   const status = panel.querySelector<HTMLElement>("#keyStatus")!;
   const testState = panel.querySelector<HTMLElement>("#aiTestStatus")!;
   void hasAiKey().then(async exists => {
