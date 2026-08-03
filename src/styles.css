@@ -1349,31 +1349,64 @@ button.danger,
 
 .settings-grid {
   height: 100%;
-  overflow: auto;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   display: grid;
-  gap: 12px;
+  align-content: start;
+  gap: 8px;
+  padding: 10px;
 }
 
-.settings-grid section { padding: 12px; }
+.settings-grid section,
+.settings-grid > details {
+  min-width: 0;
+  padding: 10px 12px;
+}
+.settings-section {
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line));
+  border-radius: var(--radius-panel);
+  background: color-mix(in srgb, var(--surface-soft) 78%, transparent);
+}
+.settings-section > summary {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  list-style: none;
+}
+.settings-section > summary::-webkit-details-marker { display: none; }
+.settings-section > summary::after { content: "⌄"; margin-left: auto; transition: transform .18s ease; }
+.settings-section:not([open]) > summary::after { transform: rotate(-90deg); }
+.settings-section > summary small { color: var(--text-muted); font-size: 8px; font-weight: 400; }
 .settings-grid h3 { margin: 0 0 8px; color: var(--accent); font-size: 11px; }
 .settings-grid label {
-  min-height: 48px;
+  min-width: 0;
+  min-height: 42px;
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(150px, .8fr);
+  grid-template-columns: minmax(0, 1fr) minmax(128px, .72fr);
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
 }
 .settings-grid label > span { display: grid; gap: 2px; font-size: 10px; }
+.settings-grid label > input:not([type="checkbox"]),
+.settings-grid label > select { width: 100%; min-width: 0; }
 .tool-visibility {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 6px;
   margin-top: 8px;
 }
 .tool-visibility label {
   min-height: 34px;
-  padding: 6px 9px !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  gap: 8px !important;
+  padding: 6px 9px;
   border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
   border-radius: 10px;
   background: color-mix(in srgb, var(--panel-strong) 72%, transparent);
@@ -1415,10 +1448,46 @@ button.danger,
   .port-lookup { grid-template-columns: 1fr auto; }
   .port-lookup > div { grid-column: 1 / -1; }
   .tool-visibility { grid-template-columns: 1fr; }
+  .settings-grid label { grid-template-columns: minmax(0, 1fr) minmax(110px, .7fr); }
 }
 .settings-grid small { color: var(--text-muted); font-size: 8px; }
-.settings-grid input[type="checkbox"] { justify-self: end; width: 17px; height: 17px; accent-color: var(--accent); }
+.settings-grid input[type="checkbox"] {
+  width: 30px;
+  height: 17px;
+  position: relative;
+  justify-self: end;
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 55%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-input) 86%, transparent);
+  cursor: pointer;
+  transition: border-color .16s ease, background .16s ease;
+}
+.settings-grid input[type="checkbox"]::after {
+  content: "";
+  width: 11px;
+  height: 11px;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform .16s ease, background .16s ease;
+}
+.settings-grid input[type="checkbox"]:checked { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 34%, var(--surface-input)); }
+.settings-grid input[type="checkbox"]:checked::after { transform: translateX(13px); background: var(--accent); }
 .setting-actions { justify-content: flex-end; margin-top: 10px; }
+.setting-actions .icon-action,
+.diagnostic-toolbar button {
+  width: 31px;
+  height: 31px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  font-size: 13px;
+}
+.settings-advanced { margin-top: 5px; border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+.settings-advanced > summary { padding: 8px 0 4px; color: var(--text-muted); cursor: pointer; font-size: 8px; }
 
 .setting-actions button:disabled {
   opacity: .55;
@@ -1466,6 +1535,18 @@ button.danger,
   padding: 0 9px;
   cursor: pointer;
   font-size: 9px;
+}
+
+.diagnostic-toolbar button,
+.setting-actions .icon-action {
+  width: 31px;
+  min-width: 31px;
+  height: 31px;
+  min-height: 31px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  font-size: 13px;
 }
 
 .operation-logs {

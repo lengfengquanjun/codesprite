@@ -8,6 +8,7 @@ import { installGlobalDiagnostics, operationLog, type OperationLogEntry } from "
 import { generateNames, type NameCandidate, type NamingKind, type NamingRule } from "./naming";
 import { isTauri, nativeInvoke, optionalNativeInvoke } from "./platform/native";
 import { repository } from "./storage/repository";
+import { looksSensitiveText } from "./security/sensitive";
 import { applyTheme, THEMES } from "./theme/themes";
 import { createTodoReport, parseTodoDocument, serializeTodoDocument, type ReportRange } from "./todo/document";
 
@@ -254,20 +255,13 @@ async function captureClipboard(): Promise<void> {
   const content = await optionalNativeInvoke<string | null>("read_clipboard_text");
   if (!content || content === lastClipboard || content.length > 100_000) return;
   lastClipboard = content;
-  if (looksSensitive(content)) return;
+  if (looksSensitiveText(content)) return;
   await repository.update(draft => {
     const existing = draft.clipboard.find(item => item.content === content);
     if (existing) existing.lastUsedAt = new Date().toISOString();
     else draft.clipboard.unshift({ id: uid(), content, kind: classifyClipboard(content), favorite: false, createdAt: new Date().toISOString(), lastUsedAt: new Date().toISOString() });
     draft.clipboard = [...draft.clipboard.filter(item => item.favorite), ...draft.clipboard.filter(item => !item.favorite)].slice(0, 300);
   });
-}
-
-function looksSensitive(content: string): boolean {
-  const value = content.trim();
-  return /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/.test(value)
-    || /\b(?:api[_-]?key|password|passwd|secret)\s*[:=]\s*["']?\S{8,}/i.test(value)
-    || /\b(?:sk|ghp|xox[baprs])-?[A-Za-z0-9_-]{20,}\b/.test(value);
 }
 
 function classifyClipboard(content: string): ClipboardItem["kind"] {
@@ -637,36 +631,36 @@ function bindPort(panel: HTMLElement): void {
 
 function settingsMarkup(): string {
   return `<div class="settings-grid">
-    <section><h3>窗口与主题</h3>
+    <section class="settings-section"><h3>窗口与主题</h3>
       <label><span>窗口置顶<small>主球与工具窗统一遵循</small></span><input id="alwaysOnTop" type="checkbox" ${data.settings.alwaysOnTop ? "checked" : ""}></label>
       <label><span>常驻待办<small>独立小窗显示，不占用主球边界</small></span><input id="pinTodo" type="checkbox" ${data.settings.pinTodo ? "checked" : ""}></label>
       <label><span>水位指标<small>决定球内水位高度</small></span><select id="metric"><option value="memory" ${data.settings.metric === "memory" ? "selected" : ""}>内存</option><option value="cpu" ${data.settings.metric === "cpu" ? "selected" : ""}>CPU</option></select></label>
       <label><span>主题<small>颜色、字体和水球样式由主题令牌控制</small></span><select id="themeId">${THEMES.map(theme => `<option value="${theme.id}" ${theme.id === data.settings.themeId ? "selected" : ""}>${theme.name}</option>`).join("")}</select></label>
     </section>
-    <section><h3>功能球</h3>
+    <section class="settings-section"><h3>功能球</h3>
       <p class="diagnostic-note">选择点击水球后展开的功能。隐藏后仍可从系统托盘打开。</p>
       <div class="tool-visibility">${TOOL_REGISTRY.map(tool => `<label><span><b>${tool.icon}</b>${tool.label}</span><input class="visible-tool" type="checkbox" value="${tool.id}" ${data.settings.visibleTools.includes(tool.id) ? "checked" : ""}></label>`).join("")}</div>
     </section>
-    <section><h3>AI 命名</h3>
+    <details class="settings-section"><summary><span>AI 命名</span><small>模型与凭据</small></summary>
       <label><span>启用 AI<small>失败时自动保留本地结果</small></span><input id="aiEnabled" type="checkbox" ${data.settings.aiEnabled ? "checked" : ""}></label>
       <label><span>接口地址</span><input id="aiBaseUrl" value="${escapeHtml(data.settings.aiProvider.baseUrl)}"></label>
       <label><span>模型</span><input id="aiModel" value="${escapeHtml(data.settings.aiProvider.model)}"></label>
       <label><span>API Key<small id="keyStatus">正在检查系统凭据…</small></span><input id="aiKey" type="password" autocomplete="off" placeholder="sk- 按量付费；tp- Token Plan"></label>
       <div id="aiTestStatus" class="connection-status" data-state="idle">尚未测试连接</div>
-      <div class="setting-actions"><button id="saveAi">保存并测试</button><button id="deleteAi" class="danger">清除密钥</button></div>
-    </section>
-    <section><h3>诊断与本地数据</h3>
-      <div class="diagnostic-toolbar"><button id="refreshLogs">刷新日志</button><button id="copyLogs">复制日志</button><button id="clearLogs">清空日志</button><button id="clearAllData" class="danger">清空所有本地数据</button></div>
+      <div class="setting-actions"><button id="saveAi" class="icon-action" title="保存并测试 AI" aria-label="保存并测试 AI">✓</button><button id="deleteAi" class="icon-action danger" title="清除 AI 密钥" aria-label="清除 AI 密钥">⌫</button></div>
+    </details>
+    <details class="settings-section"><summary><span>诊断与本地数据</span><small>日志与缓存</small></summary>
+      <div class="diagnostic-toolbar"><button id="refreshLogs" title="刷新日志" aria-label="刷新日志">↻</button><button id="copyLogs" title="复制日志" aria-label="复制日志">⧉</button><button id="clearLogs" title="清空日志" aria-label="清空日志">⌫</button><button id="clearAllData" class="danger" title="清空所有本地数据" aria-label="清空所有本地数据">⊘</button></div>
       <p class="diagnostic-note">日志仅保存在本机，记录操作阶段、窗口和错误；不会记录 API Key 或剪贴板正文。</p>
       <div id="operationLogs" class="operation-logs"><div class="empty-state">正在读取操作日志…</div></div>
-    </section>
-    <section><h3>在线更新</h3>
+    </details>
+    <details class="settings-section" open><summary><span>在线更新</span><small>GitHub Releases</small></summary>
       <label><span>启用在线更新<small>仅接受 HTTPS 与签名验证通过的更新包</small></span><input id="updateEnabled" type="checkbox" ${data.settings.updater.enabled ? "checked" : ""}></label>
       <label><span>启动时自动检查<small>只检查版本，不会静默安装</small></span><input id="updateAutoCheck" type="checkbox" ${data.settings.updater.autoCheck ? "checked" : ""}></label>
-      <label><span>更新服务地址<small>保留 target、arch、current_version 三个模板变量</small></span><input id="updateEndpoint" value="${escapeHtml(data.settings.updater.endpoint)}"></label>
+      <details class="settings-advanced"><summary>高级：更新地址</summary><label><span>更新服务地址<small>默认读取 GitHub Releases 的 latest.json</small></span><input id="updateEndpoint" value="${escapeHtml(data.settings.updater.endpoint)}"></label></details>
       <div id="updateStatus" class="connection-status" data-state="idle">尚未检查更新</div>
-      <div class="setting-actions"><button id="checkUpdate">检查更新</button><button id="installUpdate" hidden>下载并安装</button></div>
-    </section>
+      <div class="setting-actions"><button id="checkUpdate" class="icon-action" title="检查更新" aria-label="检查更新">↻</button><button id="installUpdate" class="icon-action" title="下载并安装" aria-label="下载并安装" hidden>↓</button></div>
+    </details>
   </div>`;
 }
 

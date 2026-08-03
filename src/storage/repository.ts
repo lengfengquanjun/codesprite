@@ -1,10 +1,11 @@
 import { DEFAULT_DATA } from "../config/defaults";
 import type { AppData } from "../core/types";
 import { isTauri, nativeInvoke } from "../platform/native";
+import { removeSensitiveClipboardItems } from "../security/sensitive";
 
 const FALLBACK_KEY = "codesprite.app-data.v1";
 
-function mergeData(value?: Partial<AppData> | null): AppData {
+export function mergeData(value?: Partial<AppData> | null): AppData {
   return {
     ...structuredClone(DEFAULT_DATA),
     ...value,
@@ -16,10 +17,16 @@ function mergeData(value?: Partial<AppData> | null): AppData {
       visibleTools: Array.isArray(value?.settings?.visibleTools)
         ? value.settings.visibleTools.filter(id => DEFAULT_DATA.settings.visibleTools.includes(id))
         : [...DEFAULT_DATA.settings.visibleTools],
-      updater: { ...DEFAULT_DATA.settings.updater, ...value?.settings?.updater },
+      updater: {
+        ...DEFAULT_DATA.settings.updater,
+        ...value?.settings?.updater,
+        endpoint: value?.settings?.updater?.endpoint === "https://updates.codesprite.dev/{{target}}/{{arch}}/{{current_version}}"
+          ? DEFAULT_DATA.settings.updater.endpoint
+          : value?.settings?.updater?.endpoint ?? DEFAULT_DATA.settings.updater.endpoint,
+      },
     },
     todos: Array.isArray(value?.todos) ? value.todos.map(item => ({ ...item, kind: item.kind ?? "todo" })) : [],
-    clipboard: Array.isArray(value?.clipboard) ? value.clipboard : [],
+    clipboard: Array.isArray(value?.clipboard) ? removeSensitiveClipboardItems(value.clipboard) : [],
     workspaces: Array.isArray(value?.workspaces) ? value.workspaces : [],
     namingHistory: Array.isArray(value?.namingHistory) ? value.namingHistory : [],
   };
@@ -34,7 +41,14 @@ export class AppRepository {
       const raw = isTauri
         ? await nativeInvoke<string | null>("read_app_data")
         : localStorage.getItem(FALLBACK_KEY);
-      this.data = mergeData(raw ? JSON.parse(raw) as Partial<AppData> : null);
+      const parsed = raw ? JSON.parse(raw) as Partial<AppData> : null;
+      this.data = mergeData(parsed);
+      const originalClipboard = Array.isArray(parsed?.clipboard) ? parsed.clipboard : [];
+      if (originalClipboard.length !== this.data.clipboard.length) {
+        if (isTauri) await nativeInvoke("update_app_sections", { sections: { clipboard: this.data.clipboard } });
+        else localStorage.setItem(FALLBACK_KEY, JSON.stringify(this.data));
+        console.warn(`已从本地剪贴板历史清理 ${originalClipboard.length - this.data.clipboard.length} 条敏感记录`);
+      }
     } catch (error) {
       console.error("读取本地数据失败，已使用默认值", error);
       this.data = structuredClone(DEFAULT_DATA);
