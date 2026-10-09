@@ -352,6 +352,17 @@ function bindNaming(panel: HTMLElement): void {
   const aiAvailable = data.settings.aiEnabled && isTauri ? hasAiKey().catch(() => false) : Promise.resolve(false);
   const cache = new Map<string, NameCandidate[]>();
   let requestVersion = 0;
+  let expanded: boolean | null = null;
+  const setExpanded = (next: boolean) => {
+    if (expanded === next) return;
+    expanded = next;
+    document.body.dataset.namingExpanded = String(next);
+    void optionalNativeInvoke("resize_tool_window_height", {
+      label: isTauri ? getCurrentWebviewWindow().label : "tool-naming",
+      height: next ? 174 : 82,
+    });
+  };
+  setExpanded(false);
   const generate = async () => {
     if (goButton.disabled) return;
     const text = input.value.trim(); if (!text) { input.focus(); return; }
@@ -360,10 +371,11 @@ function bindNaming(panel: HTMLElement): void {
     const language = panel.querySelector<HTMLSelectElement>("#namingLanguage")!.value;
     const cacheKey = JSON.stringify([text, kind, rule, language]);
     const version = ++requestVersion;
-    renderNameBubbles(list, generateNames(text, kind, rule), input);
+    setExpanded(true);
+    renderNameBubbles(list, generateNames(text, kind, rule), input, () => setExpanded(false));
     const cached = cache.get(cacheKey);
     if (cached) {
-      renderNameBubbles(list, cached, input);
+      renderNameBubbles(list, cached, input, () => setExpanded(false));
       operationLog.debug("naming", "ai.cache_hit", "复用本次运行中的命名结果", { textLength: text.length });
       return;
     }
@@ -381,21 +393,34 @@ function bindNaming(panel: HTMLElement): void {
     if (candidates?.length) {
       cache.set(cacheKey, candidates);
       if (cache.size > 80) cache.delete(cache.keys().next().value!);
-      renderNameBubbles(list, candidates, input);
+      renderNameBubbles(list, candidates, input, () => setExpanded(false));
       operationLog.info("naming", "ai.success", "AI 命名候选已展示", { elapsedMs: Math.round(performance.now() - started), candidates: candidates.length });
     }
   };
   goButton.addEventListener("click", generate);
   input.addEventListener("keydown", event => { if (event.key === "Enter") void generate(); });
+  input.addEventListener("input", () => {
+    if (input.value) return;
+    requestVersion++;
+    list.replaceChildren();
+    setExpanded(false);
+  });
+  input.addEventListener("keydown", event => {
+    if (event.key !== "Escape") return;
+    requestVersion++;
+    list.replaceChildren();
+    input.value = "";
+    setExpanded(false);
+  });
   input.focus();
 }
 
-function renderNameBubbles(list: HTMLElement, candidates: NameCandidate[], input: HTMLInputElement): void {
+function renderNameBubbles(list: HTMLElement, candidates: NameCandidate[], input: HTMLInputElement, onDismiss: () => void): void {
   list.innerHTML = candidates.map((item, index) => `<button class="name-bubble bubble-${index % 3}" data-value="${escapeHtml(item.value)}"><b>${escapeHtml(item.value)}</b><small>${escapeHtml(item.reason)}</small></button>`).join("");
-  list.querySelectorAll<HTMLButtonElement>(".name-bubble").forEach(bubble => bubble.addEventListener("click", () => void popBubbles(list, bubble, input)));
+  list.querySelectorAll<HTMLButtonElement>(".name-bubble").forEach(bubble => bubble.addEventListener("click", () => void popBubbles(list, bubble, input, onDismiss)));
 }
 
-async function popBubbles(list: HTMLElement, selected: HTMLButtonElement, input: HTMLInputElement): Promise<void> {
+async function popBubbles(list: HTMLElement, selected: HTMLButtonElement, input: HTMLInputElement, onDismiss: () => void): Promise<void> {
   const value = selected.dataset.value ?? "";
   await safely(() => isTauri ? nativeInvoke("write_clipboard_text", { content: value }) : navigator.clipboard.writeText(value), "复制失败");
   await repository.update(draft => { draft.namingHistory.unshift({ query: input.value, value, createdAt: new Date().toISOString() }); draft.namingHistory = draft.namingHistory.slice(0, 500); });
@@ -403,7 +428,7 @@ async function popBubbles(list: HTMLElement, selected: HTMLButtonElement, input:
     for (let index = 0; index < 12; index++) { const shard = document.createElement("i"); shard.className = "bubble-shard"; shard.style.setProperty("--angle", `${index * 30 + Math.random() * 12}deg`); shard.style.setProperty("--distance", `${36 + Math.random() * 48}px`); bubble.append(shard); }
     window.setTimeout(() => bubble.classList.add("popping"), order * 55);
   });
-  window.setTimeout(() => { list.replaceChildren(); input.value = ""; input.focus(); }, 850);
+  window.setTimeout(() => { list.replaceChildren(); input.value = ""; input.focus(); onDismiss(); }, 850);
   toast(`已复制：${value}`);
 }
 

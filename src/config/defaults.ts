@@ -11,7 +11,7 @@ export const DEFAULT_AI_PROVIDER: AiProviderConfig = {
 };
 
 export const TOOL_REGISTRY: ToolDefinition[] = [
-  { id: "naming", label: "变量命名", icon: "{}", window: { width: 760, height: 210, minWidth: 620, minHeight: 170, transparent: true } },
+  { id: "naming", label: "变量命名", icon: "{}", window: { width: 760, height: 82, minWidth: 620, minHeight: 76, transparent: true } },
   { id: "clipboard", label: "剪贴板", icon: "▣", window: { width: 560, height: 440, minWidth: 440, minHeight: 320, transparent: true } },
   { id: "todo", label: "待办备忘", icon: "✓", window: { width: 720, height: 620, minWidth: 560, minHeight: 480, transparent: true } },
   { id: "workspace", label: "工作区", icon: "⌘", window: { width: 620, height: 480, minWidth: 480, minHeight: 340, transparent: true } },
