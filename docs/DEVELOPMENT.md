@@ -45,7 +45,7 @@ src-tauri/src/lib.rs    系统指标、窗口、凭据、剪贴板、进程和�
 - 各 WebView 通过 `app-data-changed` 原生事件同步，不共享易失的内存状态。
 - 不同 WebView 只提交发生变化的顶级数据分区，Rust 在全局互斥锁内读取最新文件并合并，避免剪贴板后台写入覆盖主题或待办设置。
 - MiMo API Key 使用 Windows Credential Manager 保存，不写入源码、JSON、日志或 Git。
-- 自动剪贴板历史会跳过私钥和明显的 API Key/password 文本；目前普通剪贴板记录仍是本地明文，后续加密数据库完成前不应宣称可安全收藏密码。
+- 自动剪贴板历史会跳过私钥、`sk-` / `tp-` / GitHub Token / JWT / AWS Key 和明显的密码赋值；加载旧数据时会清除历史遗留的敏感记录。目前普通剪贴板记录仍是本地明文，后续加密数据库完成前不应宣称可安全收藏密码。
 - 云同步与 Team 模式未来应实现新的 Repository/Sync Adapter，领域模型保持不变。
 
 ## 5. 功能清单

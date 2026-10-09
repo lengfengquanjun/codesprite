@@ -864,6 +864,16 @@ fn move_tool_window_by(app: tauri::AppHandle, label: String, delta_x: i32, delta
     move_window(app.get_webview_window(&label).ok_or("tool window not found")?, delta_x, delta_y)
 }
 
+/// 透明工具窗必须跟随实际可见内容调整高度，否则空白透明区域仍会拦截桌面鼠标。
+#[tauri::command]
+fn resize_tool_window_height(app: tauri::AppHandle, label: String, height: f64) -> Result<(), String> {
+    let window = app.get_webview_window(&label).ok_or("tool window not found")?;
+    let scale = window.scale_factor().map_err(|error| error.to_string())?;
+    let current = window.inner_size().map_err(|error| error.to_string())?;
+    let width = current.width as f64 / scale;
+    window.set_size(Size::Logical(LogicalSize { width, height })).map_err(|error| error.to_string())
+}
+
 fn hide_satellite_windows(app: &tauri::AppHandle) -> usize {
     let mut hidden = 0;
     for (label, window) in app.webview_windows() {
@@ -1197,7 +1207,7 @@ pub fn run() {
             read_clipboard_text, write_clipboard_text, launch_target,
             inspect_port, kill_port_process, check_app_update, install_app_update,
             set_always_on_top, resize_main_window, move_widget_by,
-            move_tool_window_by, set_satellite_menu, open_tool_window, close_tool_window, sync_pinned_todo_window
+            move_tool_window_by, resize_tool_window_height, set_satellite_menu, open_tool_window, close_tool_window, sync_pinned_todo_window
             , snap_widget_to_edge, reveal_widget_from_edge
         ])
         .run(tauri::generate_context!())
